@@ -11,8 +11,8 @@ jobs:
             - name: Checkout Repo
               uses: actions/checkout@v4
 
-            - name: Setup npm
-              uses: npm/action-setup@v4
+            - name: Setup npmrc
+              run: echo "//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}" >> ~/.npmrc
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -26,8 +26,8 @@ jobs:
             - name: Run Tests
               run: npm test
 
-            - name: Publish to npm
+            - name: Publish package
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+                  NPM_TOKEN: ${{ secrets.WHEREBY_GITHUB_TOKEN }}
               run: npm publish
