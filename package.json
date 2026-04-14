@@ -1,5 +1,5 @@
 {
-	"name": "@whereby/mediasoup-client",
+	"name": "@whereby.com/mediasoup-client",
 	"version": "3.15.8",
 	"description": "mediasoup client side TypeScript library",
 	"contributors": [
@@ -99,8 +99,5 @@
 		"ts-jest": "^29.4.1",
 		"typescript": "^5.9.2",
 		"typescript-eslint": "^8.43.0"
-	},
-	"publishConfig": {
-		"registry": "https://npm.pkg.github.com"
 	}
 }
