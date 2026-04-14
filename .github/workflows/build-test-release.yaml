@@ -7,15 +7,9 @@ jobs:
     build-test-release:
         name: Build, test, release
         runs-on: ubuntu-latest
-        env:
-            GITHUB_TOKEN: ${{ secrets.WHEREBY_GITHUB_TOKEN }}
-            NPM_TOKEN: ${{ secrets.WHEREBY_GITHUB_TOKEN }}
         steps:
             - name: Checkout Repo
               uses: actions/checkout@v4
-
-            - name: Setup npmrc
-              run: echo "//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}" >> ~/.npmrc
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -31,3 +25,5 @@ jobs:
 
             - name: Publish package
               run: npm publish
+              env:
+                NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
