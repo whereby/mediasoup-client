@@ -1,5 +1,5 @@
 {
-	"name": "mediasoup-client",
+	"name": "@whereby.com/mediasoup-client",
 	"version": "3.15.7",
 	"description": "mediasoup client side TypeScript library",
 	"contributors": [
