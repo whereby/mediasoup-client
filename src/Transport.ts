@@ -500,8 +500,10 @@ export class Transport<
 	 */
 	async produce<ProducerAppData extends AppData = AppData>({
 		track,
+		streamId,
 		encodings,
 		codecOptions,
+		headerExtensionOptions,
 		codec,
 		stopTracks = true,
 		disableTrackOnPause = true,
@@ -542,7 +544,7 @@ export class Transport<
 
 					if (encodings && !Array.isArray(encodings)) {
 						throw TypeError('encodings must be an array');
-					} else if (encodings && encodings.length === 0) {
+					} else if (encodings?.length === 0) {
 						normalizedEncodings = undefined;
 					} else if (encodings) {
 						normalizedEncodings = encodings.map(encoding => {
@@ -586,8 +588,10 @@ export class Transport<
 					const { localId, rtpParameters, rtpSender } =
 						await this._handler.send({
 							track,
+							streamId,
 							encodings: normalizedEncodings,
 							codecOptions,
+							headerExtensionOptions,
 							codec,
 							onRtpSender,
 						});
@@ -900,8 +904,8 @@ export class Transport<
 						task.consumerOptions;
 
 					optionsList.push({
-						trackId: id!,
-						kind: kind!,
+						trackId: id,
+						kind: kind,
 						rtpParameters,
 						streamId,
 						onRtpReceiver,
@@ -918,9 +922,9 @@ export class Transport<
 							task.consumerOptions;
 						const { localId, rtpReceiver, track } = result;
 						const consumer: Consumer<ConsumerAppData> = new Consumer({
-							id: id!,
+							id,
 							localId,
-							producerId: producerId!,
+							producerId,
 							rtpReceiver,
 							track,
 							rtpParameters,
@@ -1023,7 +1027,7 @@ export class Transport<
 						error
 					);
 				}
-			}, 'transport.pausePendingConsumers')
+			}, 'transport.pausePendingConsumers()')
 			.then(() => {
 				this._consumerPauseInProgress = false;
 
@@ -1068,7 +1072,7 @@ export class Transport<
 						error
 					);
 				}
-			}, 'transport.resumePendingConsumers')
+			}, 'transport.resumePendingConsumers()')
 			.then(() => {
 				this._consumerResumeInProgress = false;
 
@@ -1111,7 +1115,7 @@ export class Transport<
 						error
 					);
 				}
-			}, 'transport.closePendingConsumers')
+			}, 'transport.closePendingConsumers()')
 			.then(() => {
 				this._consumerCloseInProgress = false;
 

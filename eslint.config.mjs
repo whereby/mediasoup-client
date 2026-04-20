@@ -16,6 +16,7 @@ const config = tsEslint.config(
 		},
 	},
 	eslint.configs.recommended,
+	prettierRecommendedEslint,
 	{
 		rules: {
 			'constructor-super': 2,
@@ -124,7 +125,6 @@ const config = tsEslint.config(
 		files: ['src/**/*.ts'],
 		languageOptions: {
 			parserOptions: {
-				projectService: true,
 				project: 'tsconfig.json',
 			},
 		},
@@ -159,9 +159,11 @@ const config = tsEslint.config(
 			'@typescript-eslint/consistent-indexed-object-style': 0,
 			'@typescript-eslint/no-empty-function': 0,
 			'@typescript-eslint/prefer-nullish-coalescing': 0,
+			'@typescript-eslint/prefer-regexp-exec': 0,
 			'@typescript-eslint/require-await': 0,
 			'@typescript-eslint/restrict-template-expressions': 0,
 			'@typescript-eslint/unbound-method': 0,
+			'@typescript-eslint/no-redundant-type-constituents': 0,
 		},
 	},
 	{
@@ -174,8 +176,7 @@ const config = tsEslint.config(
 			'jest/prefer-expect-assertions': 0,
 			'@typescript-eslint/no-unnecessary-type-assertion': 0,
 		},
-	},
-	prettierRecommendedEslint
+	}
 );
 
 export default config;

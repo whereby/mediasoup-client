@@ -148,8 +148,8 @@ export function extractDtlsParameters({
 		);
 
 		if (mediaObject) {
-			setup ??= mediaObject.setup;
-			fingerprint ??= mediaObject.fingerprint;
+			setup = setup ?? mediaObject.setup;
+			fingerprint = fingerprint ?? mediaObject.fingerprint;
 		}
 	}
 
@@ -274,4 +274,26 @@ export function applyCodecParameters({
 			fmtp.config += `${key}=${parameters[key]}`;
 		}
 	}
+}
+
+/**
+ * Add header extension in the given SDP m= section offer.
+ */
+export function addHeaderExtension({
+	offerMediaObject,
+	headerExtensionUri,
+	headerExtensionId,
+}: {
+	offerMediaObject: SdpTransform.MediaDescription;
+	headerExtensionUri: RtpHeaderExtensionUri;
+	headerExtensionId: number;
+}): void {
+	if (!offerMediaObject.ext) {
+		offerMediaObject.ext = [];
+	}
+
+	offerMediaObject.ext.push({
+		uri: headerExtensionUri,
+		value: headerExtensionId,
+	});
 }

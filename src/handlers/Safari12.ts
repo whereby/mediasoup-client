@@ -10,13 +10,20 @@ import type {
 	RtpCapabilities,
 	MediaKind,
 	ExtendedRtpCapabilities,
+	RtpHeaderExtensionUri,
+	RtpHeaderExtensionDirection,
 } from '../RtpParameters';
 import type { SctpCapabilities, SctpStreamParameters } from '../SctpParameters';
+import { RemoteSdp } from './sdp/RemoteSdp';
+import * as sdpCommonUtils from './sdp/commonUtils';
+import * as sdpUnifiedPlanUtils from './sdp/unifiedPlanUtils';
+import * as ortcUtils from './ortc/utils';
 import type {
 	HandlerFactory,
 	HandlerInterface,
 	HandlerEvents,
 	HandlerOptions,
+	HandlerGetNativeRtpCapabilitiesOptions,
 	HandlerSendOptions,
 	HandlerSendResult,
 	HandlerReceiveOptions,
@@ -26,10 +33,6 @@ import type {
 	HandlerReceiveDataChannelOptions,
 	HandlerReceiveDataChannelResult,
 } from './HandlerInterface';
-import { RemoteSdp } from './sdp/RemoteSdp';
-import * as sdpCommonUtils from './sdp/commonUtils';
-import * as sdpUnifiedPlanUtils from './sdp/unifiedPlanUtils';
-import * as ortcUtils from './ortc/utils';
 
 const logger = new Logger('Safari12');
 
@@ -48,7 +51,7 @@ export class Safari12
 	private _remoteSdp: RemoteSdp;
 	// Callback to request sending extended RTP capabilities on demand.
 	private _getSendExtendedRtpCapabilities: (
-		nativeRtpCapabilities: RtpCapabilities
+		nativeSendRtpCapabilities: RtpCapabilities
 	) => ExtendedRtpCapabilities;
 	// Initial server side DTLS role. If not 'auto', it will force the opposite
 	// value in client side.
@@ -58,7 +61,7 @@ export class Safari12
 	// Map of RTCTransceivers indexed by MID.
 	private readonly _mapMidTransceiver: Map<string, RTCRtpTransceiver> =
 		new Map();
-	// Local stream for sending.
+	// Default local stream for sending if no `streamId` is given in send().
 	private readonly _sendStream = new MediaStream();
 	// Whether a DataChannel m=application section has been created.
 	private _hasDataChannelMediaSection = false;
@@ -74,8 +77,10 @@ export class Safari12
 		return {
 			name: NAME,
 			factory: (options: HandlerOptions): Safari12 => new Safari12(options),
-			getNativeRtpCapabilities: async (): Promise<RtpCapabilities> => {
-				logger.debug('getNativeRtpCapabilities()');
+			getNativeRtpCapabilities: async ({
+				direction,
+			}: HandlerGetNativeRtpCapabilitiesOptions): Promise<RtpCapabilities> => {
+				logger.debug('getNativeRtpCapabilities() [direction:%o]', direction);
 
 				let pc: RTCPeerConnection | undefined = new RTCPeerConnection({
 					iceServers: [],
@@ -85,8 +90,8 @@ export class Safari12
 				});
 
 				try {
-					pc.addTransceiver('audio');
-					pc.addTransceiver('video');
+					pc.addTransceiver('audio', { direction });
+					pc.addTransceiver('video', { direction });
 
 					const offer = await pc.createOffer();
 
@@ -106,6 +111,7 @@ export class Safari12
 						pc?.close();
 					} catch (error2) {}
 
+					// eslint-disable-next-line no-useless-assignment
 					pc = undefined;
 
 					throw error;
@@ -122,7 +128,12 @@ export class Safari12
 	}
 
 	private static getLocalRtpCapabilities(
-		localSdpObject: SdpTransform.SessionDescription
+		localSdpObject: SdpTransform.SessionDescription,
+		extraHeaderExtensions: {
+			uri: RtpHeaderExtensionUri;
+			kind: MediaKind;
+			direction: RtpHeaderExtensionDirection;
+		}[] = []
 	): RtpCapabilities {
 		const nativeRtpCapabilities = sdpCommonUtils.extractRtpCapabilities({
 			sdpObject: localSdpObject,
@@ -133,6 +144,13 @@ export class Safari12
 
 		// libwebrtc supports NACK for OPUS but doesn't announce it.
 		ortcUtils.addNackSupportForOpus(nativeRtpCapabilities);
+
+		for (const headerExtension of extraHeaderExtensions) {
+			ortcUtils.addHeaderExtensionSupport(
+				nativeRtpCapabilities,
+				headerExtension
+			);
+		}
 
 		return nativeRtpCapabilities;
 	}
@@ -329,15 +347,22 @@ export class Safari12
 
 	async send({
 		track,
+		streamId,
 		encodings,
 		codecOptions,
+		headerExtensionOptions,
 		codec,
 		onRtpSender,
 	}: HandlerSendOptions): Promise<HandlerSendResult> {
 		this.assertNotClosed();
 		this.assertSendDirection();
 
-		logger.debug('send() [kind:%s, track.id:%s]', track.kind, track.id);
+		logger.debug(
+			'send() [kind:%s, track.id:%s, streamId:%s]',
+			track.kind,
+			track.id,
+			streamId
+		);
 
 		const mediaSectionIdx = this._remoteSdp.getNextMediaSectionIdx();
 		const transceiver = this._pc.addTransceiver(track, {
@@ -356,8 +381,23 @@ export class Safari12
 			this._remoteSdp.setSessionExtmapAllowMixed();
 		}
 
-		const nativeRtpCapabilities =
-			Safari12.getLocalRtpCapabilities(localSdpObject);
+		const extraHeaderExtensions: {
+			uri: RtpHeaderExtensionUri;
+			kind: MediaKind;
+			direction: RtpHeaderExtensionDirection;
+		}[] = [];
+
+		extraHeaderExtensions.push({
+			uri: 'http://www.webrtc.org/experiments/rtp-hdrext/abs-capture-time',
+			kind: track.kind as MediaKind,
+			direction: 'sendonly',
+		});
+
+		const nativeRtpCapabilities = Safari12.getLocalRtpCapabilities(
+			localSdpObject,
+			extraHeaderExtensions
+		);
+
 		const sendExtendedRtpCapabilities = this._getSendExtendedRtpCapabilities(
 			nativeRtpCapabilities
 		);
@@ -416,6 +456,27 @@ export class Safari12
 			};
 		}
 
+		// Optimize. Only generate new offer if needed.
+		if (headerExtensionOptions?.absCaptureTime) {
+			offerMediaObject = localSdpObject.media[mediaSectionIdx.idx]!;
+
+			sdpCommonUtils.addHeaderExtension({
+				offerMediaObject,
+				headerExtensionUri:
+					'http://www.webrtc.org/experiments/rtp-hdrext/abs-capture-time',
+				headerExtensionId: sendingRemoteRtpParameters.headerExtensions!.find(
+					headerExtension =>
+						headerExtension.uri ===
+						'http://www.webrtc.org/experiments/rtp-hdrext/abs-capture-time'
+				)!.id,
+			});
+
+			offer = {
+				type: 'offer',
+				sdp: sdpTransform.write(localSdpObject),
+			};
+		}
+
 		logger.debug('send() | calling pc.setLocalDescription() [offer:%o]', offer);
 
 		await this._pc.setLocalDescription(offer);
@@ -434,9 +495,13 @@ export class Safari12
 			offerMediaObject,
 		});
 
+		// Set msid.
+		sendingRtpParameters.msid = `${streamId ?? this._sendStream.id} ${track.id}`;
+
 		// Set RTP encodings.
 		sendingRtpParameters.encodings = sdpUnifiedPlanUtils.getRtpEncodings({
 			offerMediaObject,
+			codecs: sendingRtpParameters.codecs,
 		});
 
 		// Complete encodings with given values.
@@ -865,11 +930,17 @@ export class Safari12
 
 			mapLocalId.set(trackId, localId);
 
+			// We ignore MSID `trackId` when consuming and always use our computed
+			// `trackId` which matches the `consumer.id`.
+			const { msidStreamId } = ortcUtils.getMsidStreamIdAndTrackId(
+				rtpParameters.msid
+			);
+
 			this._remoteSdp.receive({
 				mid: localId,
 				kind,
 				offerRtpParameters: rtpParameters,
-				streamId: streamId ?? rtpParameters.rtcp!.cname!,
+				streamId: streamId ?? msidStreamId ?? rtpParameters.rtcp?.cname ?? '-',
 				trackId,
 			});
 		}
