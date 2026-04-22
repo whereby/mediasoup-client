@@ -1,5 +1,5 @@
 {
-	"name": "mediasoup-client",
+	"name": "@whereby.com/mediasoup-client",
 	"version": "3.19.0",
 	"description": "mediasoup client side TypeScript library",
 	"contributors": [
@@ -10,7 +10,7 @@
 	"homepage": "https://mediasoup.org",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/versatica/mediasoup-client.git"
+		"url": "git+https://github.com/whereby/mediasoup-client.git"
 	},
 	"funding": {
 		"type": "opencollective",
